@@ -67,8 +67,8 @@
 - [ ] API design patterns
 
 ## 08 — Security
-- [ ] Cryptographic primitives (hashing, encryption, signing)
-- [ ] Authentication flows (OAuth, JWT, sessions)
+- [~] Cryptographic primitives (hashing, encryption, signing)
+- [~] Authentication flows (OAuth, JWT, sessions)
 - [ ] OWASP Top 10
 - [ ] XSS, CSRF, SQL injection (understand & defend)
 - [ ] TLS certificate chain
