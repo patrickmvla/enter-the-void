@@ -49,13 +49,14 @@
 - [▪] REST vs gRPC vs GraphQL
 
 ## 06 — Databases
-- [ ] B-trees & indexing
-- [ ] Query execution plans
-- [ ] Storage engines (LSM vs B-tree)
-- [ ] Transactions & ACID
-- [ ] Replication strategies
-- [ ] Sharding & partitioning
-- [ ] PostgreSQL internals
+- [▪] B-trees & indexing
+- [▪] Query execution plans
+- [▪] Storage engines (LSM vs B-tree)
+- [▪] Transactions & ACID
+- [▪] SQL (language, window functions, CTEs, DDL internals)
+- [▪] Replication strategies
+- [▪] Sharding & partitioning
+- [▪] PostgreSQL internals (architecture, wire protocol, executor, locks, memory, JIT)
 
 ## 07 — Architecture
 - [ ] Load balancing
