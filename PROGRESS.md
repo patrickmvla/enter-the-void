@@ -40,13 +40,13 @@
 - [ ] Complexity analysis (Big O, amortized)
 
 ## 05 — Networking
-- [ ] TCP/IP stack
-- [ ] HTTP/1.1, HTTP/2, HTTP/3
-- [ ] DNS resolution
-- [ ] TLS/SSL handshake
-- [ ] WebSockets
-- [ ] Sockets & raw networking
-- [ ] REST vs gRPC vs GraphQL
+- [▪] TCP/IP stack
+- [▪] HTTP/1.1, HTTP/2, HTTP/3
+- [▪] DNS resolution
+- [▪] TLS/SSL handshake
+- [▪] WebSockets
+- [▪] Sockets & raw networking
+- [▪] REST vs gRPC vs GraphQL
 
 ## 06 — Databases
 - [ ] B-trees & indexing
@@ -67,10 +67,10 @@
 - [ ] API design patterns
 
 ## 08 — Security
-- [~] Cryptographic primitives (hashing, encryption, signing)
-- [~] Authentication flows (OAuth, JWT, sessions)
-- [ ] OWASP Top 10
-- [ ] XSS, CSRF, SQL injection (understand & defend)
+- [▪] Cryptographic primitives (hashing, encryption, signing)
+- [▪] Authentication flows (OAuth, JWT, sessions)
+- [~] OWASP Top 10
+- [~] XSS, CSRF, SQL injection (understand & defend)
 - [ ] TLS certificate chain
 - [ ] Key management
 - [ ] Zero trust architecture
