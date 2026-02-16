@@ -64,6 +64,8 @@ Additionally:
 Each model is a different strategy for compressing the authorization matrix
 into manageable rules.
 
+### Practical Models
+
 | Model | Strategy | Deep Dive |
 |-------|----------|-----------|
 | **ACL** | List who can do what, per resource | [01-authorization-models.md](01-authorization-models.md#acls--access-control-lists) |
@@ -71,6 +73,24 @@ into manageable rules.
 | **ABAC** | Evaluate attributes of subject, resource, action, and environment at runtime | [01-authorization-models.md](01-authorization-models.md#abac--attribute-based-access-control) |
 | **ReBAC** | Derive permissions from relationships between entities (graph-based) | [01-authorization-models.md](01-authorization-models.md#rebac--relationship-based-access-control) |
 | **Capability-based** | Token IS the permission — no identity lookup | [01-authorization-models.md](01-authorization-models.md#capability-based-security) |
+
+### Formal Models
+
+| Model | Protects | Core Rules | Deep Dive |
+|-------|----------|-----------|-----------|
+| **Bell-LaPadula** | Confidentiality | No read up, no write down | [02-formal-access-control-models.md](02-formal-access-control-models.md) |
+| **Biba** | Integrity | No read down, no write up | [02-formal-access-control-models.md](02-formal-access-control-models.md) |
+| **Clark-Wilson** | Commercial integrity | Well-formed transactions, separation of duties | [02-formal-access-control-models.md](02-formal-access-control-models.md) |
+| **DAC** | Owner decides | Discretionary — owner sets permissions | [02-formal-access-control-models.md](02-formal-access-control-models.md) |
+| **MAC** | System decides | Mandatory — system enforces, users can't override | [02-formal-access-control-models.md](02-formal-access-control-models.md) |
+
+### Token-Based Authorization
+
+| Topic | What It Covers | Deep Dive |
+|-------|---------------|-----------|
+| **Scopes** | How OAuth scopes become authorization decisions | [03-scopes-and-token-authorization.md](03-scopes-and-token-authorization.md) |
+| **Token exchange** | Downscoping and retargeting tokens across services | [03-scopes-and-token-authorization.md](03-scopes-and-token-authorization.md) |
+| **JWT claims as authz data** | Fat vs thin tokens, the hybrid approach | [03-scopes-and-token-authorization.md](03-scopes-and-token-authorization.md) |
 
 These are not mutually exclusive. Production systems combine them:
 - **RBAC + ABAC**: "Editors can write posts" (RBAC) + "only their own
