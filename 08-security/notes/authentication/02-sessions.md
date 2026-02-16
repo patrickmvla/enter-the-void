@@ -177,6 +177,77 @@ a security boundary, but it's not — JavaScript from `/other` can create an
 iframe pointing to `/app` and access cookies through it. **Path is not a
 security mechanism.** It's for organizational separation only.
 
+#### Cookie Name Prefixes (`__Host-` and `__Secure-`)
+
+A defense against subdomain attacks and cookie injection:
+
+```
+Set-Cookie: __Host-sid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax
+```
+
+**`__Host-` prefix requirements** (enforced by the browser):
+- Must have `Secure` flag
+- Must NOT have a `Domain` attribute (locked to the exact host)
+- Must have `Path=/`
+- Must be set over HTTPS
+
+If any requirement is violated, the browser **rejects the cookie entirely**.
+
+**Why this matters**: Without `__Host-`, an attacker who controls a subdomain
+(e.g., `evil.example.com`) can set a cookie for `example.com` (by setting
+`Domain=example.com`), overwriting the session cookie. The `__Host-` prefix
+makes this impossible — the cookie can't have a Domain attribute, so it's
+locked to the exact origin.
+
+**`__Secure-` prefix**: Weaker version. Only requires the `Secure` flag.
+Prevents cookies from being set over HTTP but doesn't prevent subdomain
+attacks.
+
+```
+__Host-sid    → strongest: exact host only, HTTPS only, no subdomain override
+__Secure-sid  → medium: HTTPS only, but can still set Domain
+sid           → weakest: no restrictions enforced by name
+```
+
+#### How the Browser's Cookie Jar Matches Cookies to Requests
+
+When the browser makes a request, it decides which cookies to attach using
+RFC 6265 matching:
+
+```
+1. Domain match:
+   Cookie domain ".example.com" matches:
+     example.com      ✓
+     app.example.com  ✓
+     api.example.com  ✓
+   Cookie without Domain (host-only):
+     app.example.com  ✓ (only the exact host)
+     example.com      ✗
+
+2. Path match:
+   Cookie path "/app" matches:
+     /app             ✓
+     /app/settings    ✓
+     /application     ✓ (prefix match, not directory match!)
+     /other           ✗
+
+3. Secure match:
+   Cookie with Secure flag: only sent over HTTPS
+   Cookie without Secure: sent over HTTP and HTTPS
+
+4. SameSite match:
+   Evaluated against the request's site relationship
+   (covered in the SameSite section above)
+```
+
+**The path matching gotcha**: `/app` matches `/application` because it's
+a prefix match, not a directory match. The spec says the cookie path must
+be a prefix of the request path. This is why Path is not a security
+boundary.
+
+All matching cookies are sent in a single `Cookie` header, ordered by most
+specific path first (longest path prefix), then by earliest creation time.
+
 #### `Max-Age` and `Expires`
 
 ```
@@ -554,6 +625,46 @@ if (hash(req.ip + req.userAgent) !== session.fingerprint) {
 Most production systems skip IP binding and rely on the cookie security
 attributes instead. The false-positive rate of IP binding creates more
 support tickets than the hijacking it prevents.
+
+### Session Deserialization Attacks
+
+If session data is serialized using a language-native format (PHP
+`serialize()`, Java `ObjectInputStream`, Python `pickle`), an attacker
+who can control session data can achieve **remote code execution**.
+
+**PHP Object Injection:**
+
+```php
+// If session data is stored as PHP serialized:
+$_SESSION['user'] = unserialize($cookie_value);
+
+// Attacker crafts a serialized object:
+// O:8:"Exploit":1:{s:4:"cmd";s:17:"system('whoami');"}
+// If a class with a __destruct or __wakeup magic method exists that
+// uses the "cmd" property, the code executes on deserialization.
+```
+
+**Java Deserialization (CVE-2015-4852, Apache Commons Collections):**
+
+The attack that hit WebLogic, JBoss, Jenkins, and hundreds of Java
+applications. If the application deserializes untrusted data, an attacker
+constructs a serialized object chain (gadget chain) that triggers arbitrary
+code execution when deserialized. The class doesn't need to be in your
+code — it just needs to be on the classpath.
+
+**The fix**: Never deserialize untrusted data using native serialization.
+Use JSON for session storage. If you must use native serialization, sign
+the session data with HMAC (like Rails does with `signed_cookies`) so
+tampered data is rejected before deserialization.
+
+**Node.js / Express**: `express-session` stores sessions as JSON by default,
+which is safe from deserialization attacks. But custom session stores that
+use `eval()`, `Function()`, or unsafe deserialization libraries are
+vulnerable.
+
+This attack class is why frameworks moved to JSON-based session storage
+and signed cookies — not because JSON is inherently secure, but because
+JSON parsers don't execute code during parsing.
 
 ---
 

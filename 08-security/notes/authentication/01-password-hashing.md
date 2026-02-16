@@ -550,6 +550,109 @@ CLIENT                          SERVER                          DATABASE
 | Key derivation from password (encryption) | Argon2id or scrypt |
 | Never, under any circumstance | MD5, SHA-1, SHA-256 alone, any unsalted hash |
 
+---
+
+## Credential Stuffing — The Attack That Bypasses All Hashing
+
+Password hashing protects against **database breaches**. It does nothing
+against **credential stuffing** — where the attacker already has the
+plaintext password from a different breach.
+
+### How It Works
+
+1. Attacker obtains a credential dump (email + plaintext password pairs)
+   from a breached service (RockYou, Collection #1-5, etc.)
+2. Attacker writes a bot that tries each email/password pair against your
+   login endpoint
+3. Because users reuse passwords, ~0.5-2% of attempts succeed
+4. On a dump of 1 billion credentials, that's 5-20 million valid logins
+
+Your Argon2id hashing is irrelevant — the attacker isn't cracking hashes.
+They're submitting valid passwords through your front door.
+
+### Defenses
+
+- **Rate limiting**: Cap login attempts per IP and per account. Slowdown
+  or lockout after N failures.
+- **Credential screening**: On registration and password change, check the
+  password against the Have I Been Pwned API (k-anonymity model — you send
+  the first 5 chars of the SHA-1 hash, they return all matching hashes,
+  you check locally). Reject known-breached passwords.
+- **Bot detection**: CAPTCHA, device fingerprinting, behavioral analysis.
+  Automated stuffing tools submit thousands of logins per minute from
+  rotating IPs — detect the pattern, not just the IP.
+- **Breached password notification**: Periodically check your users'
+  password hashes against known breach databases and force password resets.
+
+---
+
+## Password Entropy — How Attackers Build Wordlists
+
+Brute force doesn't mean trying every possible string. Real attackers use
+**smart wordlists** ordered by probability.
+
+### The Hierarchy of Attacks
+
+```
+1. Dictionary attack: Try common passwords
+   "password", "123456", "qwerty", "letmein"
+   → Cracks ~5% of any large database instantly
+
+2. Dictionary + rules: Apply transformations
+   "password" → "Password", "p@ssword", "password1", "Password!"
+   Hashcat rules apply: capitalization, leet speak, appended numbers/symbols
+   → Cracks ~30-40% with a good ruleset
+
+3. Hybrid: Dictionary + brute force suffix
+   "password" + 4-digit number → "password0000" through "password9999"
+   → Catches the "just add numbers" pattern
+
+4. Markov chain / probabilistic: Generate candidates based on character
+   frequency and position statistics from known password dumps
+   → "qaz2wsx" ranks higher than "xyzabc" because keyboard patterns
+   are more common
+
+5. Full brute force: Try every combination for a given length/charset
+   → Last resort. 8 chars alphanumeric = 2.8 trillion combinations.
+```
+
+### Password Strength Estimation (zxcvbn)
+
+Dropbox's zxcvbn library estimates password entropy by identifying patterns:
+
+```
+"Tr0ub4dor&3"
+Patterns found:
+  "troubador" → dictionary word (rank ~50,000) + l33t substitutions
+  "&" → special char
+  "3" → single digit
+
+Estimated guesses: ~60,000 (dictionary rank × substitution variants)
+Time to crack at 10K guesses/sec: ~6 seconds
+
+vs.
+
+"correct horse battery staple"
+Patterns found:
+  4 common dictionary words (ranks ~1000, ~2000, ~5000, ~20000)
+
+Estimated guesses: ~2 × 10^16
+Time to crack at 10K guesses/sec: ~63,000 years
+```
+
+The second password is longer, easier to remember, and exponentially harder
+to crack. This is because password security comes from **unpredictability**
+(entropy), not from complexity rules. A short password with special
+characters is predictable (people substitute the same way). A long
+passphrase of random words has genuine entropy.
+
+**Why complexity rules fail**: Requiring uppercase + lowercase + number +
+symbol doesn't increase security proportionally — it increases it by a
+constant factor (maybe 10-100x) while annoying users into writing passwords
+down. Four random words multiply the keyspace by ~10^16.
+
+---
+
 ### Migration Strategy
 
 If you inherit a system using weak hashing:

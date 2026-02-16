@@ -862,6 +862,92 @@ check both.
 
 ---
 
+## Pushed Authorization Requests — PAR (RFC 9126)
+
+In the standard authorization code flow, the authorization request is a
+GET request with all parameters in the URL:
+
+```
+GET /authorize?response_type=code&client_id=abc123&redirect_uri=https://...
+    &scope=read:repos&state=xyz&code_challenge=E9Me...&code_challenge_method=S256
+```
+
+**Problems:**
+1. The URL appears in browser history, server logs, Referer headers
+2. URL length limits can truncate complex requests (many scopes, long
+   redirect URIs)
+3. The authorization server can't authenticate the client at this point
+   (GET requests from the browser don't carry client secrets)
+4. Parameters can be modified by the browser or extensions before reaching
+   the authorization server
+
+### How PAR Works
+
+**Step 1: Client pushes the authorization request server-to-server**
+
+```http
+POST /par HTTP/1.1
+Host: auth.example.com
+Authorization: Basic base64(client_id:client_secret)
+Content-Type: application/x-www-form-urlencoded
+
+response_type=code&
+redirect_uri=https://myapp.com/callback&
+scope=read:repos read:user&
+state=xyz&
+code_challenge=E9Me...&
+code_challenge_method=S256
+```
+
+```json
+{
+    "request_uri": "urn:ietf:params:oauth:request_uri:abc123",
+    "expires_in": 60
+}
+```
+
+**Step 2: Browser redirect uses only the request_uri**
+
+```
+GET /authorize?client_id=abc123&request_uri=urn:ietf:params:oauth:request_uri:abc123
+```
+
+The browser URL contains no sensitive parameters. The authorization server
+retrieves the full request from its storage using the `request_uri`.
+
+**Security benefits:**
+- Parameters never appear in browser history or logs
+- The client is authenticated when pushing the request (Basic auth)
+- Parameters can't be tampered with after the push
+- The request_uri is single-use and short-lived (60 seconds)
+
+### The `iss` Parameter — Preventing Mix-Up Attacks
+
+OAuth mix-up attacks occur when a client talks to multiple authorization
+servers and an attacker confuses which server issued which response.
+
+**The attack:**
+1. Client supports login via both Google and Attacker's AuthServer
+2. User starts login with Google
+3. Attacker's server intercepts and returns a response that looks like
+   it came from Google
+4. Client sends the authorization code to Attacker's server (thinking
+   it's Google's token endpoint)
+5. Attacker now has a valid Google authorization code
+
+**The defense (RFC 9207):** The authorization server includes an `iss`
+parameter in the authorization response:
+
+```
+https://myapp.com/callback?code=abc&state=xyz&iss=https://accounts.google.com
+```
+
+The client verifies that `iss` matches the authorization server it sent
+the request to. If it doesn't match, the response is from a different
+server — reject it.
+
+---
+
 ## Common Vulnerabilities
 
 ### Authorization Code Injection

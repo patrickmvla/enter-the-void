@@ -212,6 +212,52 @@ within its validity window.
 
 ---
 
+## TOTP with SHA-256 and SHA-512
+
+The original TOTP RFC uses HMAC-SHA1 by default, but RFC 6238 explicitly
+supports SHA-256 and SHA-512.
+
+### Why Use Longer Hashes?
+
+SHA-1 produces a 160-bit HMAC output. Dynamic truncation extracts 31 bits
+and then reduces to 6 digits (about 20 bits of effective entropy). At the
+OTP level, SHA-256 doesn't increase the code's entropy — you're still
+reducing to 6 digits.
+
+The advantage is in **HMAC security margin**. While HMAC-SHA1 remains
+unbroken, SHA-1 itself has demonstrated weaknesses. SHA-256/512 provide
+a larger security margin against future cryptanalytic advances. Defense
+in depth.
+
+### Parameter Differences
+
+| Algorithm | Key length (recommended) | HMAC output | otpauth:// param |
+|-----------|--------------------------|-------------|------------------|
+| SHA-1 | 20 bytes (160 bits) | 20 bytes | `algorithm=SHA1` |
+| SHA-256 | 32 bytes (256 bits) | 32 bytes | `algorithm=SHA256` |
+| SHA-512 | 64 bytes (512 bits) | 64 bytes | `algorithm=SHA512` |
+
+**Dynamic truncation with longer hashes:** The algorithm is identical —
+the last nibble of the HMAC output selects the offset. With SHA-256 (32
+bytes), the offset range is 0-15 (still fits in the last nibble), and
+you extract bytes at positions offset through offset+3. With SHA-512 (64
+bytes), the offset range is 0-15 from the last byte, and there are more
+bytes to potentially extract from.
+
+### Compatibility Reality
+
+Not all authenticator apps support SHA-256/SHA-512. Google Authenticator
+added support, but some older or simpler apps only handle SHA-1. If you
+use SHA-256 in the `otpauth://` URI and the user's app doesn't support
+it, the codes won't match and they'll be locked out.
+
+**Recommendation:** SHA-1 for maximum compatibility. SHA-256 if you
+control the authenticator app (enterprise setting). The practical
+security difference is negligible — HMAC-SHA1 is not the weak link in
+TOTP.
+
+---
+
 ## The Shared Secret — Generation, Exchange, and Storage
 
 ### Generating the Secret
@@ -525,6 +571,87 @@ public key. The private key never leaves the authenticator device.
   (iCloud Keychain, Google Password Manager). Combines the convenience of
   platform authenticators with multi-device availability. The private key
   is synced encrypted — the cloud provider can't read it (in theory).
+
+### WebAuthn at the Byte Level
+
+The browser and authenticator communicate using CBOR (Concise Binary Object
+Representation) — a binary encoding of JSON-like data, chosen for
+efficiency on constrained hardware (USB security keys).
+
+**Registration (navigator.credentials.create):**
+
+```
+1. Server sends:
+   {
+     challenge: Uint8Array(32),        // random challenge
+     rp: { id: "example.com", name: "My App" },
+     user: { id: Uint8Array, name: "alice", displayName: "Alice" },
+     pubKeyCredParams: [{ type: "public-key", alg: -7 }]  // -7 = ES256
+   }
+
+2. Browser hashes the client data:
+   clientDataJSON = JSON.stringify({
+     type: "webauthn.create",
+     challenge: base64url(challenge),
+     origin: "https://example.com",      // THE ORIGIN BINDING
+     crossOrigin: false
+   })
+   clientDataHash = SHA-256(clientDataJSON)
+
+3. Authenticator creates key pair:
+   (privateKey, publicKey) = generateKeyPair(ES256)
+   credentialId = random(16+ bytes)
+
+4. Authenticator builds attestation object (CBOR-encoded):
+   {
+     fmt: "packed",                       // attestation format
+     attStmt: { alg: -7, sig: ... },     // attestation signature
+     authData: rpIdHash(32) || flags(1) || signCount(4) ||
+               credentialId || publicKey(COSE-encoded)
+   }
+
+5. Server receives and verifies:
+   - Decode clientDataJSON, verify origin matches
+   - Decode attestation object
+   - Extract public key from authData
+   - Verify attestation signature (optional — proves authenticator type)
+   - Store: { credentialId, publicKey, signCount } for the user
+```
+
+**Authentication (navigator.credentials.get):**
+
+```
+1. Server sends:
+   { challenge: Uint8Array(32), rpId: "example.com" }
+
+2. Browser builds clientDataJSON (same as above, type: "webauthn.get")
+   clientDataHash = SHA-256(clientDataJSON)
+
+3. Authenticator:
+   - Looks up the private key for rpId "example.com"
+   - If rpId doesn't match any stored credential → REFUSES TO SIGN
+     (THIS IS THE PHISHING PROTECTION)
+   - Increments signCount
+   - Signs: authData || clientDataHash with the private key
+
+4. Server verifies:
+   - Verify signature over authData || clientDataHash using stored publicKey
+   - Check signCount > stored signCount (detects cloned authenticators)
+   - Update stored signCount
+```
+
+**The signCount**: A monotonically increasing counter. If a hardware key
+reports signCount=42 but the server's stored count is already 43, the
+authenticator may have been cloned (a real device would have count >= 44).
+Not foolproof — some authenticators (like platform authenticators that
+sync) always return 0 — but it's an additional signal for hardware keys.
+
+**Attestation formats**: "packed" (standard), "tpm" (Trusted Platform
+Module), "android-key" (Android Keystore), "fido-u2f" (legacy U2F keys),
+"none" (no attestation — the authenticator doesn't prove its identity).
+Most applications should accept "none" — attestation tells you the make
+and model of the authenticator, which matters for enterprise device
+compliance but not for general consumer use.
 
 ### Why TOTP Still Exists
 

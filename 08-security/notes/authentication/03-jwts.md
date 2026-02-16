@@ -513,6 +513,147 @@ pre-defined key map, never as a file path or raw SQL input.
 
 ---
 
+## DPoP — Sender-Constrained Tokens (RFC 9449)
+
+Standard Bearer tokens have a fundamental problem: **anyone who possesses
+the token can use it.** If an attacker steals a JWT from a log, memory
+dump, or network interception, they can use it from any machine.
+
+DPoP (Demonstration of Proof-of-Possession) binds a token to a specific
+client by requiring the client to prove possession of a private key on
+every request.
+
+### How DPoP Works
+
+**Step 1: Client generates a key pair (one-time, stored in memory)**
+
+```
+{ privateKey, publicKey } = generateKeyPair('ES256')
+```
+
+**Step 2: When requesting a token, client creates a DPoP proof**
+
+A DPoP proof is a JWT signed by the client's private key:
+
+```json
+// DPoP proof header:
+{
+    "typ": "dpop+jwt",
+    "alg": "ES256",
+    "jwk": { /* client's public key */ }
+}
+
+// DPoP proof payload:
+{
+    "jti": "unique-id",
+    "htm": "POST",          // HTTP method
+    "htu": "https://auth.example.com/token",  // target URI
+    "iat": 1708012800
+}
+```
+
+```http
+POST /token HTTP/1.1
+DPoP: eyJ... (the DPoP proof JWT)
+grant_type=authorization_code&code=...
+```
+
+**Step 3: Authorization server binds the access token to the public key**
+
+The access token includes a `cnf` (confirmation) claim with the thumbprint
+of the client's public key:
+
+```json
+{
+    "sub": "42",
+    "cnf": {
+        "jkt": "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
+    }
+}
+```
+
+**Step 4: Client proves possession on every API request**
+
+```http
+GET /api/data HTTP/1.1
+Authorization: DPoP eyJ... (the access token)
+DPoP: eyJ... (fresh DPoP proof, signed with the same private key)
+```
+
+The resource server:
+1. Verifies the access token signature (from the auth server)
+2. Verifies the DPoP proof signature (from the client)
+3. Checks that the DPoP proof's public key thumbprint matches the `cnf.jkt`
+   in the access token
+4. Checks that `htm` and `htu` match the current request
+5. Checks `jti` uniqueness (prevents replay)
+
+**If an attacker steals the access token**, they can't use it — they don't
+have the client's private key to create valid DPoP proofs. The token is
+bound to the key.
+
+### DPoP vs mTLS
+
+Mutual TLS (mTLS) also binds tokens to client certificates, but requires
+TLS-level client certificate configuration. DPoP works at the application
+layer — no infrastructure changes needed, works through proxies and CDNs
+that terminate TLS.
+
+---
+
+## JWT Best Current Practices (RFC 8725)
+
+The mistakes that production systems keep making, codified as an RFC.
+
+### 1. Always Validate `typ`
+
+If your system uses multiple JWT types (access tokens, ID tokens, CSRF
+tokens), an attacker can use a token issued for one purpose in another
+context. An ID token submitted as an access token might pass signature
+verification but grant unintended access.
+
+```javascript
+// GOOD: Check the type
+const header = decodeHeader(token);
+if (header.typ !== 'at+jwt') reject(); // expecting an access token
+```
+
+### 2. Validate All Registered Claims
+
+```javascript
+// EVERY verification must check:
+{
+    iss: 'https://auth.yourapp.com',  // reject tokens from other issuers
+    aud: 'https://api.yourapp.com',   // reject tokens meant for other services
+    exp: /* must be in the future */,
+    nbf: /* must be in the past */,
+    iat: /* must be reasonable (not years ago) */
+}
+```
+
+**What happens if you skip each:**
+- Skip `iss` → tokens from any issuer are accepted (including attacker's server)
+- Skip `aud` → a token meant for Service A works on Service B
+- Skip `exp` → tokens are valid forever
+- Skip `nbf` → pre-dated tokens work before they should
+
+### 3. Use Explicit Algorithms
+
+Already covered in the attacks section, but RFC 8725 makes it explicit:
+never let the token header choose the algorithm.
+
+### 4. Limit Token Lifetime
+
+Access tokens: 5-15 minutes maximum. Longer lifetimes increase the window
+for stolen token abuse and stale authorization claims.
+
+### 5. Use Asymmetric Signatures for Multi-Party Systems
+
+If more than one party verifies tokens, symmetric keys (HS256) mean every
+verifier can forge tokens. RS256/ES256/EdDSA ensure only the issuer can sign.
+
+---
+
 ## JWT Size and Performance
 
 A JWT is sent on **every request** in the `Authorization` header. Size
