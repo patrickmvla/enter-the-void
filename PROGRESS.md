@@ -59,13 +59,13 @@
 - [▪] PostgreSQL internals (architecture, wire protocol, executor, locks, memory, JIT)
 
 ## 07 — Architecture
-- [ ] Load balancing
-- [ ] Caching strategies
-- [ ] Message queues & event-driven
-- [ ] Microservices vs monolith
-- [ ] CAP theorem & consistency models
-- [ ] Rate limiting & backpressure
-- [ ] API design patterns
+- [▪] Load balancing (L4/L7, algorithms, health checks, anycast)
+- [▪] Caching strategies (aside/through/behind, Redis internals, CDN)
+- [▪] Message queues & event-driven (Kafka internals, event sourcing, CQRS, sagas)
+- [▪] Microservices vs monolith (modular monolith, service mesh, strangler fig)
+- [▪] CAP theorem & consistency models (covered in 06-databases replication)
+- [▪] Rate limiting & backpressure (token bucket, circuit breaker, bulkhead)
+- [▪] API design patterns (covered in 05-networking APIs)
 
 ## 08 — Security
 - [▪] Cryptographic primitives (hashing, encryption, signing)
@@ -89,3 +89,9 @@
 > Build-to-learn. Each project here proves mastery across multiple domains.
 
 - [ ] _projects added as topics are mastered_
+
+## 11 — Interviews
+- [ ] Coding patterns (arrays, two pointers, sliding window, trees, graphs, DP)
+- [ ] System design framework & practice
+- [ ] Behavioral story bank
+- [ ] Mock interview runs
